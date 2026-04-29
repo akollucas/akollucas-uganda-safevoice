@@ -1,8 +1,8 @@
+import { API_URL } from '../config';
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const api = axios.create({
-  baseURL: 'https://uganda-safevoice-api.onrender.com/api' // Replace with actual URL
+  baseURL: API_URL
 });
 
 api.interceptors.request.use(async (config) => {
