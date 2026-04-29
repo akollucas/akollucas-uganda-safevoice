@@ -1,0 +1,8 @@
+{
+  "appId": "ug.government.safevoice",
+  "appName": "Uganda SafeVoice",
+  "webDir": "../frontend",
+  "server": {
+    "androidScheme": "https"
+  }
+}

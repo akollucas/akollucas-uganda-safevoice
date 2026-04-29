@@ -1,0 +1,15 @@
+{
+  "name": "safevoice-mobile",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "npm run build:web && npx cap copy",
+    "build:web": "cd ../frontend && (if not exist dist mkdir dist) && xcopy /E /I * dist/",
+    "open:android": "npx cap open android",
+    "open:ios": "npx cap open ios"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^5.0.0",
+    "@capacitor/android": "^5.0.0",
+    "@capacitor/ios": "^5.0.0"
+  }
+}
