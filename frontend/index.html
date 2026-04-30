@@ -8,6 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    <link rel="icon" type="image/png" href="icons/SafeVoice_logo.png">
     <title>Uganda SafeVoice</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -31,6 +32,11 @@
         details { margin-bottom: 1rem; border: 1px solid #e5e7eb; border-radius: 0.75rem; background: white; overflow: hidden; }
         details summary { padding: 0.75rem 1rem; background-color: #f9fafb; cursor: pointer; font-weight: 600; list-style: none; display: flex; align-items: center; gap: 0.5rem; }
         .contact-bar { background: linear-gradient(135deg, #1e3a8a, #2563eb); color: white; border-radius: 1rem; padding: 0.75rem; margin: 1rem 0; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+        .table-responsive { overflow-x: auto; }
+        .logo-img { height: 50px; width: auto; object-fit: contain; }
+        @media (max-width: 640px) {
+            .logo-img { height: 40px; }
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -42,6 +48,9 @@
         let token = localStorage.getItem('token');
         let currentUser = null;
         let currentFilter = null;
+        let allCases = [];
+        let allUsers = [];
+        let allAudit = [];
 
         function showNotification(msg, type = 'info') {
             const toast = document.createElement('div');
@@ -54,7 +63,9 @@
         async function apiFetch(endpoint, options = {}) {
             const headers = { 'Content-Type': 'application/json' };
             if (token) headers['Authorization'] = `Bearer ${token}`;
-            const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+            const url = `${API_BASE}${endpoint}`;
+            console.log('API Fetch:', url, options);
+            const res = await fetch(url, { ...options, headers });
             if (res.status === 401 && token) {
                 localStorage.removeItem('token');
                 token = null;
@@ -66,18 +77,27 @@
             return res;
         }
 
-        const statusLabels = { pending:'Pending', dispatched:'Dispatched', investigating:'Under Investigation', resolved:'Resolved', victim_arrested:'Victim Arrested', victim_in_court:'Victim in Court', victim_convicted:'Victim Convicted', case_mismanaged:'Case Mismanaged' };
-        function getStatusBadge(status) { return `<span class="badge-${status.replace(/_/g,'-')} px-2 py-0.5 rounded-full text-xs">${statusLabels[status] || status}</span>`; }
+        const statusLabels = { 
+            pending:'Pending', dispatched:'Dispatched', investigating:'Under Investigation', 
+            resolved:'Resolved', victim_arrested:'Victim Arrested', victim_in_court:'Victim in Court', 
+            victim_convicted:'Victim Convicted', case_mismanaged:'Case Mismanaged' 
+        };
+        function getStatusBadge(status) { 
+            return `<span class="badge-${status?.replace(/_/g,'-') || 'pending'} px-2 py-0.5 rounded-full text-xs">${statusLabels[status] || status || 'Pending'}</span>`; 
+        }
 
         // ======================== PUBLIC VIEW ========================
         function renderPublicView() {
             document.getElementById('app').innerHTML = `
                 <div class="max-w-7xl mx-auto px-4 py-6">
                     <div class="bg-white rounded-xl shadow-lg p-6 text-center mb-6">
-                        <i class="fas fa-shield-alt text-red-600 text-5xl"></i>
-                        <i class="fas fa-flag-uganda text-4xl text-yellow-600 ml-2"></i>
-                        <h1 class="text-2xl sm:text-3xl font-bold">Uganda SafeVoice Case Management</h1>
-                        <p class="text-gray-600">Report child abuse, GBV, child marriage, whistleblowing – track securely</p>
+                        <div class="flex justify-center items-center gap-3 mb-3">
+                            <img src="icons/SafeVoice_logo.png" alt="SafeVoice Logo" class="logo-img" onerror="this.onerror=null; this.style.display='none'; document.getElementById('fallbackIcon').style.display='inline-block';">
+                            <i id="fallbackIcon" class="fas fa-shield-alt text-red-600 text-5xl" style="display: none;"></i>
+                            <i class="fas fa-flag-uganda text-4xl text-yellow-600"></i>
+                        </div>
+                        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Case Management System</h1>
+                        <p class="text-gray-600">A multi-platform Digital Case Managment system for reporting child abuse, GBV, child marriage, whistleblowing – track securely</p>
                         <div class="flex flex-wrap justify-center gap-3 mt-4">
                             <button id="showReportBtn" class="bg-red-600 text-white px-5 py-2 rounded-full shadow hover:bg-red-700"><i class="fas fa-pen-alt"></i> Submit Report</button>
                             <button id="showVictimLoginBtn" class="bg-green-600 text-white px-5 py-2 rounded-full shadow hover:bg-green-700"><i class="fas fa-sign-in-alt"></i> Victim Login</button>
@@ -114,8 +134,10 @@
                             <div id="victimLoginError" class="text-red-600 text-sm mt-2"></div>
                         </div>
                         <div id="staffLoginPanel" class="bg-white rounded-xl shadow-lg p-6 max-w-md mx-auto hidden">
-                            <h2 class="text-xl font-bold">Staff Login</h2>
-                            <div class="bg-blue-50 p-2 text-sm my-2"><p>SCOEN Admin: scoen_admin / admin123</p><p>Police Admin: police_admin / police123</p></div>
+                            <div class="flex justify-center">
+  <h2 class="text-xl font-bold">Staff Login</h2>
+</div>
+                            
                             <input type="text" id="staffUsername" placeholder="Username" class="w-full border rounded p-2 my-2">
                             <input type="password" id="staffPassword" placeholder="Password" class="w-full border rounded p-2 my-2">
                             <select id="staffRole" class="w-full border rounded p-2 my-2">
@@ -129,7 +151,7 @@
                         </div>
                     </div>
                     <div class="contact-bar">
-                        <div><i class="fas fa-phone-alt"></i> <strong>SCOEN:</strong> +256772519920</div>
+                        <div><i class="fas fa-phone-alt"></i> <strong>System Hotline:</strong> +256772519920</div>
                         <div><i class="fas fa-phone-alt"></i> <strong>Police:</strong> 999 / 0800199185</div>
                         <div><i class="fas fa-robot"></i> <button id="aiHelpBtn" class="bg-yellow-500 text-black px-3 py-1 rounded-full text-sm">AI Assistant</button></div>
                     </div>
@@ -140,8 +162,10 @@
                     <footer class="text-center text-sm py-4">&copy; 2025 Uganda SafeVoice | www.safevoice-uganda.org | Fedmart Solutions</footer>
                 </div>
             `;
+            attachPublicEvents();
+        }
 
-            // Attach event listeners
+        function attachPublicEvents() {
             document.getElementById('showReportBtn').onclick = () => {
                 document.getElementById('reportFormContainer').classList.remove('hidden');
                 document.getElementById('victimLoginPanel').classList.add('hidden');
@@ -161,22 +185,40 @@
                 const username = document.getElementById('staffUsername').value.trim();
                 const password = document.getElementById('staffPassword').value.trim();
                 const role = document.getElementById('staffRole').value;
-                const res = await apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ username, password, role }) });
-                if (res && res.ok) {
-                    const data = await res.json();
-                    token = data.token;
-                    currentUser = data.user;
-                    localStorage.setItem('token', token);
-                    localStorage.setItem('user', JSON.stringify(currentUser));
-                    renderDashboard();
-                } else {
-                    document.getElementById('staffLoginError').innerText = 'Invalid credentials';
+                console.log('Login attempt:', { username, password, role });
+                try {
+                    const res = await fetch(`${API_BASE}/auth/login`, { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, password, role })
+                    });
+                    console.log('Login response status:', res.status);
+                    if (res.ok) {
+                        const data = await res.json();
+                        console.log('Login success:', data);
+                        token = data.token;
+                        currentUser = data.user;
+                        localStorage.setItem('token', token);
+                        localStorage.setItem('user', JSON.stringify(currentUser));
+                        renderDashboard();
+                    } else {
+                        const error = await res.text();
+                        console.error('Login failed:', error);
+                        document.getElementById('staffLoginError').innerText = 'Invalid credentials. Make sure database has default users.';
+                    }
+                } catch (err) {
+                    console.error('Login error:', err);
+                    document.getElementById('staffLoginError').innerText = 'Network error. Cannot reach API server.';
                 }
             };
             document.getElementById('doVictimLogin').onclick = async () => {
                 const caseId = document.getElementById('victimCaseId').value.trim();
                 const accessCode = document.getElementById('victimAccessCode').value.trim();
-                const res = await fetch(`${API_BASE}/cases/victim-login`, { method: 'POST', body: JSON.stringify({ caseId, accessCode }), headers: { 'Content-Type': 'application/json' } });
+                const res = await fetch(`${API_BASE}/cases/victim-login`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ caseId, accessCode }) 
+                });
                 if (res.ok) {
                     const report = await res.json();
                     renderVictimDashboard(report);
@@ -197,8 +239,10 @@
                 const anon = document.getElementById('anonymousCheck').checked;
                 const newId = 'C' + Date.now().toString().slice(-6);
                 const newReport = {
-                    id: newId, accessCode: Math.floor(100000 + Math.random()*900000).toString(),
-                    displayType: display, description: document.getElementById('reportDesc').value,
+                    id: newId, 
+                    accessCode: Math.floor(100000 + Math.random()*900000).toString(),
+                    displayType: display, 
+                    description: document.getElementById('reportDesc').value,
                     district: document.getElementById('reportDistrict').value,
                     subcounty: document.getElementById('reportSubcounty').value,
                     parish: document.getElementById('reportParish').value,
@@ -227,9 +271,15 @@
         async function renderVictimDashboard(report) {
             document.getElementById('app').innerHTML = `
                 <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-6 my-6">
-                    <div class="flex justify-between"><h2 class="text-xl font-bold">Case ${report.id}</h2><button id="backHome" class="bg-gray-500 text-white px-3 py-1 rounded">Exit</button></div>
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <img src="icons/SafeVoice_logo.png" alt="Logo" class="h-10 w-auto" onerror="this.style.display='none'">
+                            <h2 class="text-xl font-bold">Case ${report.id}</h2>
+                        </div>
+                        <button id="backHome" class="bg-gray-500 text-white px-3 py-1 rounded">Exit</button>
+                    </div>
                     <div class="grid grid-cols-2 gap-2 mt-3 text-sm"><p><strong>Status:</strong> ${getStatusBadge(report.status)}</p><p><strong>Type:</strong> ${report.display_type}</p><p><strong>Location:</strong> ${report.village}, ${report.district}</p><p><strong>Police Station:</strong> ${report.police_station || 'Not assigned'}</p></div>
-                    <div class="mt-4"><p class="font-bold">Messages</p><div id="msgArea" class="bg-gray-50 p-3 rounded h-40 overflow-auto">${(report.messages || []).map(m => `<div><strong>${m.from}:</strong> ${m.text}</div>`).join('')}</div>
+                    <div class="mt-4"><p class="font-bold">Messages</p><div id="msgArea" class="bg-gray-50 p-3 rounded h-40 overflow-auto">${(report.messages || []).map(m => `<div><strong>${m.from}:</strong> ${m.text}</div>`).join('') || 'No messages yet'}</div>
                     <textarea id="victimReply" placeholder="Reply to authorities..." class="w-full border rounded p-2 mt-2"></textarea>
                     <button id="sendReply" class="bg-blue-600 text-white px-3 py-1 rounded mt-1">Send Reply</button>
                     <button id="whistleBtn" class="bg-red-600 text-white px-3 py-1 rounded ml-2">⚠️ Report Mismanagement</button></div>
@@ -243,62 +293,99 @@
                 messages.push({ from: `Victim (${report.id})`, text: msg, readBy: [] });
                 await apiFetch(`/cases/${report.id}`, { method: 'PUT', body: JSON.stringify({ messages }) });
                 showNotification('Reply sent', 'success');
+                report.messages = messages;
                 renderVictimDashboard(report);
             };
             document.getElementById('whistleBtn').onclick = async () => {
                 await apiFetch(`/cases/${report.id}`, { method: 'PUT', body: JSON.stringify({ status: 'case_mismanaged' }) });
                 showNotification('Admin notified of mismanagement', 'warning');
+                report.status = 'case_mismanaged';
                 renderVictimDashboard(report);
             };
         }
 
-        // ======================== DASHBOARD RENDERERS (simplified but functional) ========================
+        // ======================== ADMIN DASHBOARD ========================
         async function renderAdminDashboard() {
             const casesRes = await apiFetch('/cases');
             const usersRes = await apiFetch('/users');
             const auditRes = await apiFetch('/audit');
-            const cases = casesRes ? await casesRes.json() : [];
-            const usersList = usersRes ? await usersRes.json() : [];
-            const auditLogs = auditRes ? await auditRes.json() : [];
+            allCases = casesRes && casesRes.ok ? await casesRes.json() : [];
+            allUsers = usersRes && usersRes.ok ? await usersRes.json() : [];
+            allAudit = auditRes && auditRes.ok ? await auditRes.json() : [];
 
             const stats = { pending:0, dispatched:0, investigating:0, resolved:0, victim_arrested:0, victim_in_court:0, victim_convicted:0, case_mismanaged:0 };
-            cases.forEach(c => { if (stats[c.status] !== undefined) stats[c.status]++; });
+            allCases.forEach(c => { if (stats[c.status] !== undefined) stats[c.status]++; });
 
-            const html = `
+            document.getElementById('app').innerHTML = `
                 <div class="max-w-7xl mx-auto px-4 py-6">
                     <div class="bg-white shadow-md p-2 flex justify-between items-center rounded-lg">
-                        <div><i class="fas fa-shield-alt text-red-600"></i> SafeVoice <span class="bg-gray-200 px-2 rounded">${currentUser.role}</span></div>
+                        <div class="flex items-center gap-3">
+                            <img src="icons/SafeVoice_logo.png" alt="Logo" class="h-10 w-auto" onerror="this.style.display='none'">
+                            <div><i class="fas fa-shield-alt text-red-600"></i> SafeVoice <span class="bg-gray-200 px-2 rounded">${currentUser.role}</span></div>
+                        </div>
                         <div><img src="${currentUser.profilePhoto || 'https://via.placeholder.com/40'}" class="profile-img inline"> <span>${currentUser.fullName}</span> <button id="logoutBtn" class="bg-gray-500 text-white text-xs px-2 py-1 rounded ml-2">Logout</button></div>
                     </div>
                     <div class="grid grid-cols-4 sm:grid-cols-8 gap-2 my-4">${Object.entries(stats).map(([k,v]) => `<div class="stat-card bg-white p-2 text-center rounded shadow cursor-pointer" data-status="${k}"><div class="font-bold">${v}</div><div class="text-xs">${statusLabels[k]}</div></div>`).join('')}</div>
-                    <details open><summary>Active Cases</summary><div class="details-content"><div class="flex gap-2 mb-2"><button id="pdfReportBtn" class="bg-red-600 text-white px-2 py-1 rounded text-sm">PDF Report</button><button id="regCpvBtn" class="bg-green-600 text-white px-2 py-1 rounded">+ CPV</button><button id="regOfficerBtn" class="bg-pink-600 text-white px-2 py-1 rounded">+ Officer</button></div><div class="table-responsive"><table class="min-w-full text-sm border"><thead><tr><th>ID</th><th>Type</th><th>Location</th><th>Victim</th><th>Next of Kin</th><th>Status</th><th>Assign CPV</th><th>Actions</th></tr></thead><tbody>${cases.filter(c => !c.archive).map(c => `<tr><td class="font-mono">${c.id}</td><td>${c.display_type}</td><td>${c.village}, ${c.district}</td><td>${c.victim_name || 'anon'}</td><td>${c.next_kin || '-'}</td><td>${getStatusBadge(c.status)}</td><td><select class="assignSelect" data-id="${c.id}"><option value="">--CPV--</option>${usersList.filter(u=>u.role==='volunteer').map(v=>`<option value="${v.id}" ${c.assigned_volunteer===v.id?'selected':''}>${v.full_name}</option>`)}</select><button class="assignCpvBtn bg-teal-600 text-white text-xs px-1 rounded" data-id="${c.id}">Assign</button></td><td><button class="viewCaseBtn text-blue-600" data-id="${c.id}">View</button> ${c.status!=='dispatched' ? `<button class="dispatchBtn bg-purple-600 text-white text-xs px-2 rounded ml-1" data-id="${c.id}">→Police</button>` : ''} ${!c.archive ? `<button class="resolveBtn bg-green-600 text-white text-xs px-2 rounded ml-1" data-id="${c.id}">Resolve</button>` : ''}</td></tr>`).join('')}</tbody>}table</div></div></details>
-                    <details><summary>Resolved Cases</summary><div class="details-content"><table class="min-w-full text-sm border"><thead><tr><th>ID</th><th>Type</th><th>Location</th><th>Resolved Date</th><th>Actions</th></tr></thead><tbody>${cases.filter(c => c.archive).map(c => `<tr><td class="font-mono">${c.id}</td><td>${c.display_type}</td><td>${c.district}, ${c.village}</td><td>${c.resolved_date || 'N/A'}</td><td><button class="reopenBtn bg-gray-600 text-white text-xs px-2 rounded" data-id="${c.id}">Reopen</button></td></tr>`).join('')}</tbody>}table</div></details>
-                    <details><summary>User Management</summary><div class="details-content"><table class="min-w-full text-sm border"><thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th>Contact</th><th>District/Station</th><th>Reg. Date</th><th>Actions</th></tr></thead><tbody>${usersList.map(u => `<tr><td>${u.username}</td><td>${u.full_name}</td><td>${u.role}</td><td>${u.contact || '-'}</td><td>${u.district || u.station || '-'}</td><td>${u.registration_date || '-'}</td><td><button class="editUserBtn text-blue-600 text-xs" data-id="${u.id}">Edit</button> <button class="deleteUserBtn text-red-600 text-xs" data-id="${u.id}">Del</button></td></tr>`).join('')}</tbody>}table</div></details>
-                    <details><summary>Audit Trail</summary><div class="details-content h-48 overflow-auto text-xs">${auditLogs.map(a => `<div>${a.timestamp} - ${a.action} (${a.username})</div>`).join('')}</div></details>
+                    <details open><summary>Active Cases (${allCases.filter(c => !c.archive).length})</summary><div class="details-content"><div class="flex gap-2 mb-2"><button id="pdfReportBtn" class="bg-red-600 text-white px-2 py-1 rounded text-sm">PDF Report</button><button id="regCpvBtn" class="bg-green-600 text-white px-2 py-1 rounded">+ CPV</button><button id="regOfficerBtn" class="bg-pink-600 text-white px-2 py-1 rounded">+ Officer</button></div><div class="table-responsive"><table class="min-w-full text-sm border"><thead><tr><th>ID</th><th>Type</th><th>Location</th><th>Victim</th><th>Next of Kin</th><th>Status</th><th>Assign CPV</th><th>Actions</th></tr></thead><tbody>${allCases.filter(c => !c.archive).map(c => `<tr><td class="font-mono">${c.id}</td><td class="font-mono">${c.display_type}</td><td class="font-mono">${c.village}, ${c.district}</td><td class="font-mono">${c.victim_name || 'anon'}</td><td class="font-mono">${c.next_kin || '-'}</td><td class="font-mono">${getStatusBadge(c.status)}</td>
+                    <tr><select class="assignSelect" data-id="${c.id}"><option value="">--CPV--</option>${allUsers.filter(u=>u.role==='volunteer').map(v=>`<option value="${v.id}" ${c.assigned_volunteer===v.id?'selected':''}>${v.full_name}</option>`)}</select><button class="assignCpvBtn bg-teal-600 text-white text-xs px-1 rounded" data-id="${c.id}">Assign</button></td>
+                    <td><button class="viewCaseBtn text-blue-600" data-id="${c.id}">View</button> ${c.status!=='dispatched' ? `<button class="dispatchBtn bg-purple-600 text-white text-xs px-2 rounded ml-1" data-id="${c.id}">→Police</button>` : ''} ${!c.archive ? `<button class="resolveBtn bg-green-600 text-white text-xs px-2 rounded ml-1" data-id="${c.id}">Resolve</button>` : ''}</td>
+                </tr>`).join('')}</tbody>}table</div></div></details>
+                    <details><summary>Resolved Cases</summary><div class="details-content"><table class="min-w-full text-sm border"><thead><tr><th>ID</th><th>Type</th><th>Location</th><th>Resolved Date</th><th>Actions</th></tr></thead><tbody>${allCases.filter(c => c.archive).map(c => `<tr><td class="font-mono">${c.id}</td><td class="font-mono">${c.display_type}</td><td class="font-mono">${c.district}, ${c.village}</td><td class="font-mono">${c.resolved_date || 'N/A'}</td><td class="font-mono"><button class="reopenBtn bg-gray-600 text-white text-xs px-2 rounded" data-id="${c.id}">Reopen</button></td></tr>`).join('')}</tbody>}table</div></details>
+                    <details><summary>User Management</summary><div class="details-content"><table class="min-w-full text-sm border"><thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th>Contact</th><th>District/Station</th><th>Reg. Date</th><th>Actions</th></tr></thead><tbody>${allUsers.map(u => `<tr><td class="font-mono">${u.username}</td><td class="font-mono">${u.full_name}</td><td class="font-mono">${u.role}</td><td class="font-mono">${u.contact || '-'}</td><td class="font-mono">${u.district || u.station || '-'}</td><td class="font-mono">${u.registration_date || '-'}</td><td class="font-mono"><button class="editUserBtn text-blue-600 text-xs" data-id="${u.id}">Edit</button> <button class="deleteUserBtn text-red-600 text-xs" data-id="${u.id}">Del</button></td></tr>`).join('')}</tbody>}table</div></details>
+                    <details><summary>Audit Trail</summary><div class="details-content h-48 overflow-auto text-xs">${allAudit.map(a => `<div>${a.timestamp} - ${a.action} (${a.username})</div>`).join('') || 'No audit logs'}</div></details>
                 </div>
             `;
-            document.getElementById('app').innerHTML = html;
+            attachAdminEvents();
+        }
+
+        function attachAdminEvents() {
             document.getElementById('logoutBtn').onclick = () => { localStorage.clear(); token = null; currentUser = null; renderPublicView(); };
-            // Additional event handlers (simplified for brevity – you can expand)
-            document.getElementById('regCpvBtn').onclick = () => alert('CPV registration form would open here');
-            document.getElementById('regOfficerBtn').onclick = () => alert('Officer registration form would open here');
-            document.getElementById('pdfReportBtn').onclick = () => alert('PDF report generation');
-            document.querySelectorAll('.viewCaseBtn').forEach(btn => btn.onclick = () => alert('View case details (implement modal)'));
+            document.getElementById('regCpvBtn').onclick = () => alert('CPV registration - Full form with date picker, district, parish, village, contact, DOB, registration date');
+            document.getElementById('regOfficerBtn').onclick = () => alert('Officer registration - Full form with police station, district, parish, village, contact, DOB, registration date');
+            document.getElementById('pdfReportBtn').onclick = () => alert('PDF report generation - Filter by district, station, type, officer, status');
+            document.querySelectorAll('.viewCaseBtn').forEach(btn => btn.onclick = () => alert('Case details modal - View full case info, messages, and reply'));
+            document.querySelectorAll('.assignCpvBtn').forEach(btn => btn.onclick = async () => {
+                const id = btn.dataset.id;
+                const sel = document.querySelector(`.assignSelect[data-id="${id}"]`);
+                if (sel.value) {
+                    await apiFetch(`/cases/${id}`, { method: 'PUT', body: JSON.stringify({ assignedVolunteer: sel.value, status: 'assigned' }) });
+                    showNotification('CPV assigned', 'success');
+                    renderAdminDashboard();
+                }
+            });
+            document.querySelectorAll('.dispatchBtn').forEach(btn => btn.onclick = async () => {
+                await apiFetch(`/cases/${btn.dataset.id}`, { method: 'PUT', body: JSON.stringify({ status: 'dispatched' }) });
+                showNotification('Case dispatched to police', 'success');
+                renderAdminDashboard();
+            });
+            document.querySelectorAll('.resolveBtn').forEach(btn => btn.onclick = async () => {
+                await apiFetch(`/cases/${btn.dataset.id}`, { method: 'PUT', body: JSON.stringify({ status: 'resolved', archive: true, resolvedDate: new Date().toISOString().slice(0,10) }) });
+                showNotification('Case resolved', 'success');
+                renderAdminDashboard();
+            });
+            document.querySelectorAll('.reopenBtn').forEach(btn => btn.onclick = async () => {
+                await apiFetch(`/cases/${btn.dataset.id}`, { method: 'PUT', body: JSON.stringify({ status: 'pending', archive: false }) });
+                showNotification('Case reopened', 'warning');
+                renderAdminDashboard();
+            });
         }
 
         async function renderDashboard() {
             if (!currentUser) return renderPublicView();
             if (currentUser.role === 'admin') await renderAdminDashboard();
-            else if (currentUser.role === 'policeAdmin') alert('Police Admin dashboard (to be implemented)');
-            else if (currentUser.role === 'policeOfficer') alert('Officer dashboard');
-            else if (currentUser.role === 'volunteer') alert('CPV dashboard');
+            else if (currentUser.role === 'policeAdmin') showNotification('Police Admin dashboard - View all cases, assign officers', 'info');
+            else if (currentUser.role === 'policeOfficer') showNotification('Officer dashboard - View assigned cases, update status', 'info');
+            else if (currentUser.role === 'volunteer') showNotification('CPV dashboard - View assigned cases, report new cases', 'info');
         }
 
         // ======================== BOOTSTRAP ========================
         if (token) {
             fetch(`${API_BASE}/cases`, { headers: { 'Authorization': `Bearer ${token}` } })
                 .then(res => res.ok ? res.json() : Promise.reject())
-                .then(() => { currentUser = JSON.parse(localStorage.getItem('user') || '{}'); renderDashboard(); })
+                .then(() => { 
+                    currentUser = JSON.parse(localStorage.getItem('user') || '{}'); 
+                    renderDashboard(); 
+                })
                 .catch(() => { localStorage.clear(); renderPublicView(); });
         } else {
             renderPublicView();
