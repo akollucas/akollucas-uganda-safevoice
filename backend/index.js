@@ -20,6 +20,20 @@ app.use('/api/audit', auditRoutes);
 const PORT = process.env.PORT || 5000;
 initDB().then(() => {
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+  app.get('/', (req, res) => {
+  res.status(200).json({
+    message: 'Uganda SafeVoice API is running',
+    status: 'ok',
+    endpoints: {
+      login: 'POST /api/auth/login',
+      cases: 'GET /api/cases',
+      victims: 'POST /api/cases/victim-login',
+      users: 'GET /api/users (admin only)',
+      audit: 'GET /api/audit (admin only)'
+    }
+  });
+});
 });
 
 
